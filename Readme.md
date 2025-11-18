@@ -20,9 +20,7 @@ pyinstaller -F -w -n VideoMarkerWeb --add-data "assets;assets" app.py
 ### macOS --> dist/VideoMarkerWeb.app
 
 ```shell
-pyinstaller --windowed --onedir -n VideoMarkerWeb \
-  --add-data "assets:assets" \
-  app.py
+pyinstaller --windowed --onedir -n VideoMarkerWeb --add-data "assets:assets" app.py
 # Optional: --icon app.icns
 # If Gatekeeper complains during testing:
 # xattr -r -d com.apple.quarantine dist/VideoMarkerWeb.app

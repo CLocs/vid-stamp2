@@ -83,9 +83,20 @@ class Bridge:
         except Exception as e:
             return {"error": str(e)}
 
-    def save_csv(self, path: str | None = None):
+    def save_csv(self, path: str | None = None, role_suffix: str | None = None):
         out = Path(path) if path else Path(self.out_path)
         out.parent.mkdir(parents=True, exist_ok=True)
+        
+        # If role_suffix is provided, append it to filename
+        # e.g., marks.csv -> mark_attending.csv
+        if role_suffix:
+            # Replace 'marks' with 'mark_{role_suffix}' in filename
+            if out.name == "marks.csv":
+                out = out.parent / f"mark_{role_suffix}.csv"
+            else:
+                # If custom filename, insert suffix before .csv
+                stem = out.stem
+                out = out.parent / f"{stem}_{role_suffix}{out.suffix}"
 
         with out.open("w", newline="") as f:
             import csv

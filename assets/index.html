@@ -7,9 +7,31 @@
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
+  <!-- Role Selection Modal -->
+  <div id="roleModal" class="modal">
+    <div class="modal-content">
+      <h2>I am a...</h2>
+      <div class="modal-options">
+        <label>
+          <input type="radio" name="role" value="attending" id="roleAttending" />
+          Attending
+        </label>
+        <label>
+          <input type="radio" name="role" value="resident" id="roleResident" />
+          Resident
+        </label>
+      </div>
+      <button id="nextBtn" class="next-button">Next</button>
+    </div>
+  </div>
+
   <div class="toolbar">
     <button id="openBtn" title="Choose a video file">Open Video…</button>
     <button id="playBtn">Play</button>
+    <div class="role-display">
+      <span class="role-label">I am a </span><span id="roleDisplay">-</span>
+      <button id="editRoleBtn">Edit</button>
+    </div>
     <button id="saveBtn">Save CSV</button>
     <div id="status">Ready</div>
   </div>
