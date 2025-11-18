@@ -69,6 +69,33 @@ body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; marg
   cursor: pointer;
 }
 
+.modal-input-group {
+  margin-bottom: 24px;
+  text-align: left;
+}
+
+.modal-input-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.modal-input-group input[type="text"] {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 16px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  box-sizing: border-box;
+}
+
+.modal-input-group input[type="text"]:focus {
+  outline: none;
+  border-color: #007AFF;
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+}
+
 .next-button {
   padding: 10px 32px;
   font-size: 16px;

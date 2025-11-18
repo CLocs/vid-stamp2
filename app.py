@@ -83,20 +83,36 @@ class Bridge:
         except Exception as e:
             return {"error": str(e)}
 
-    def save_csv(self, path: str | None = None, role_suffix: str | None = None):
+    def save_csv(self, path: str | None = None, role_suffix: str | None = None, last_name: str | None = None):
         out = Path(path) if path else Path(self.out_path)
         out.parent.mkdir(parents=True, exist_ok=True)
         
-        # If role_suffix is provided, append it to filename
-        # e.g., marks.csv -> mark_attending.csv
-        if role_suffix:
-            # Replace 'marks' with 'mark_{role_suffix}' in filename
+        # Build filename with role and last name
+        # e.g., marks.csv -> mark_attending_smith.csv
+        if role_suffix or last_name:
+            # Sanitize last name for filename (remove spaces, special chars)
+            safe_last_name = ""
+            if last_name:
+                # Keep only alphanumeric and underscores, convert to lowercase
+                safe_last_name = "".join(c.lower() if c.isalnum() or c == '_' else '_' for c in last_name.strip())
+                safe_last_name = safe_last_name.strip('_')  # Remove leading/trailing underscores
+            
             if out.name == "marks.csv":
-                out = out.parent / f"mark_{role_suffix}.csv"
+                if role_suffix and safe_last_name:
+                    out = out.parent / f"mark_{role_suffix}_{safe_last_name}.csv"
+                elif role_suffix:
+                    out = out.parent / f"mark_{role_suffix}.csv"
+                elif safe_last_name:
+                    out = out.parent / f"mark_{safe_last_name}.csv"
             else:
                 # If custom filename, insert suffix before .csv
                 stem = out.stem
-                out = out.parent / f"{stem}_{role_suffix}{out.suffix}"
+                parts = [stem]
+                if role_suffix:
+                    parts.append(role_suffix)
+                if safe_last_name:
+                    parts.append(safe_last_name)
+                out = out.parent / f"{'_'.join(parts)}{out.suffix}"
 
         with out.open("w", newline="") as f:
             import csv

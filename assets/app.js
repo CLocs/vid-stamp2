@@ -14,9 +14,11 @@ const roleResident = document.getElementById('roleResident');
 const nextBtn = document.getElementById('nextBtn');
 const roleDisplay = document.getElementById('roleDisplay');
 const editRoleBtn = document.getElementById('editRoleBtn');
+const lastNameInput = document.getElementById('lastNameInput');
 
 let lastMarkTs = -999;
 let selectedRole = null; // Will be 'attending' or 'resident' after submit
+let lastName = null; // User's last name
 const DEBOUNCE = 0.25; // seconds
 
 function fmt(s) { return s.toFixed(3); }
@@ -70,9 +72,18 @@ undoBtn.addEventListener('click', async () => {
 
 function showRoleModal() {
   roleModal.classList.add('show');
-  // Pre-select the current role if one is already selected
+  // Pre-select the current role and last name if already selected
   if (selectedRole) {
     document.querySelector(`input[name="role"][value="${selectedRole}"]`).checked = true;
+  }
+  if (lastName) {
+    lastNameInput.value = lastName;
+  } else {
+    lastNameInput.value = '';
+  }
+  // Focus on last name input if role is already selected
+  if (selectedRole) {
+    lastNameInput.focus();
   }
 }
 
@@ -83,7 +94,11 @@ function hideRoleModal() {
 function updateRoleDisplay() {
   if (selectedRole) {
     const roleText = selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1);
-    roleDisplay.textContent = roleText;
+    if (lastName) {
+      roleDisplay.textContent = `${roleText} ${lastName}`;
+    } else {
+      roleDisplay.textContent = roleText;
+    }
   } else {
     roleDisplay.textContent = '-';
   }
@@ -91,11 +106,20 @@ function updateRoleDisplay() {
 
 nextBtn.addEventListener('click', () => {
   const selected = document.querySelector('input[name="role"]:checked');
+  const lastNameValue = lastNameInput.value.trim();
+  
   if (!selected) {
     setStatus('Please select Attending or Resident');
     return;
   }
+  if (!lastNameValue) {
+    setStatus('Please enter your last name');
+    lastNameInput.focus();
+    return;
+  }
+  
   selectedRole = selected.value;
+  lastName = lastNameValue;
   hideRoleModal();
   updateRoleDisplay();
   setStatus(`Role selected: ${selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1)}`);
@@ -105,12 +129,20 @@ editRoleBtn.addEventListener('click', () => {
   showRoleModal();
 });
 
+// Allow Enter key to submit the modal
+lastNameInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    nextBtn.click();
+  }
+});
+
 saveBtn.addEventListener('click', async () => {
-  if (!selectedRole) {
-    setStatus('Please select and submit a role first');
+  if (!selectedRole || !lastName) {
+    setStatus('Please complete role selection first');
     return;
   }
-  const res = await getAPI().save_csv(null, selectedRole);
+  const res = await getAPI().save_csv(null, selectedRole, lastName);
   setStatus(`Saved ${res.count} marks → ${res.saved_to}`);
 });
 
