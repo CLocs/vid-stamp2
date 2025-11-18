@@ -1,0 +1,40 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Video Marker</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="toolbar">
+    <button id="openBtn" title="Choose a video file">Open Video…</button>
+    <button id="playBtn">Play</button>
+    <button id="saveBtn">Save CSV</button>
+    <div id="status">Ready</div>
+  </div>
+
+  <div class="main">
+    <!-- If you ship a fixed video, set src="./video.mp4" and hide openBtn -->
+    <video id="vid" controls preload="auto" style="background:black;">
+      <!-- <source src="./video.mp4" type="video/mp4" /> -->
+      Your browser does not support HTML5 video.
+    </video>
+
+    <div class="controls">
+      <button id="markBtn" class="mark">MARK (double-click or press M)</button>
+      <button id="undoBtn">Undo (U)</button>
+      <div class="spacer"></div>
+      <div>Marks: <span id="count">0</span></div>
+    </div>
+
+    <div class="marks">
+      <h3>Marks (s)</h3>
+      <ul id="markList"></ul>
+    </div>
+  </div>
+
+  <input type="file" id="filePicker" accept="video/*" style="display:none;" />
+  <script src="./app.js"></script>
+</body>
+</html>
