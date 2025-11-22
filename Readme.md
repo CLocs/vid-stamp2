@@ -4,13 +4,82 @@
 
 ## Setup
 
+First, install `uv` if you haven't already:
 ```shell
-python3 -m venv .venv
+# On macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# On Windows (PowerShell)
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+Then set up the project:
+```shell
+# Sync dependencies (creates venv, generates lock file, and installs dependencies)
+uv sync
+
+# Activate virtual environment
+# On macOS/Linux:
 source .venv/bin/activate
-pip install pywebview pyinstaller pillow
+# On Windows:
+.venv\Scripts\activate
+```
+
+**Note:** `uv sync` automatically:
+- Creates a virtual environment (`.venv`) if it doesn't exist
+- Generates/updates `uv.lock` from `pyproject.toml`
+- Installs all dependencies
+
+If you only want to update the lock file without installing:
+```shell
+uv lock
+```
+
+To install dependencies after updating the lock file:
+```shell
+uv sync
 ```
 
 **Note:** Pillow is required for macOS builds to automatically convert `.ico` icons to `.icns` format.
+
+## Run/Debug
+
+### Windows
+
+After setup, run the app in development mode:
+
+```powershell
+# Activate virtual environment
+.venv\Scripts\activate
+
+# Run the app
+python app.py
+```
+
+**Enable Debug Mode:**
+
+To open the developer console for debugging, edit `app.py` and change line 147:
+```python
+webview.start(debug=True)  # Change from False to True
+```
+
+This will open a developer console window where you can:
+- View JavaScript console logs
+- Inspect the DOM
+- Debug JavaScript errors
+- Test the bridge API calls
+
+**Note:** Remember to set `debug=False` before compiling for distribution.
+
+### macOS/Linux
+
+```shell
+# Activate virtual environment
+source .venv/bin/activate
+
+# Run the app
+python app.py
+```
 
 ## Compile
 
