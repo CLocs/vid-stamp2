@@ -1,6 +1,7 @@
 import os, json, sys, csv
 import webview
 from pathlib import Path
+from typing import Optional
 
 APP_NAME = "Video Marker"
 HOME = Path.home()
@@ -83,7 +84,7 @@ class Bridge:
         except Exception as e:
             return {"error": str(e)}
 
-    def save_csv(self, path: str | None = None, role_suffix: str | None = None, last_name: str | None = None):
+    def save_csv(self, path: Optional[str] = None, role_suffix: Optional[str] = None, last_name: Optional[str] = None):
         out = Path(path) if path else Path(self.out_path)
         out.parent.mkdir(parents=True, exist_ok=True)
         
