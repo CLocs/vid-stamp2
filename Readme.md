@@ -1,8 +1,36 @@
-# User
+# App: vid-stamp2 
 
-# Developer
+## User Guide (Resident, Attending)
 
-## Setup
+### 1. Download app and run
+
+1. Go to the Release page: https://github.com/CLocs/vid-stamp2/releases
+
+#### Windows
+2. Download the .exe file
+3. Go to your downloads and double-click the .exe file. 
+
+#### MacOS
+2. Download the .zip file
+3. Go to your downloaded file and double-click it to extract it. 
+4. Go inside the folder (VideoMarkerWeb_macOS) 
+5. Double-click the .app file
+
+#### Fill the form
+
+Select if you are a Resident or Attending
+
+
+### 2. Download video
+
+### 3. Play and mark video
+
+### 4. Send results
+
+
+## Developer Guide 
+
+### Setup
 
 First, install `uv` if you haven't already:
 ```shell
@@ -42,9 +70,9 @@ uv sync
 
 **Note:** Pillow is required for macOS builds to automatically convert `.ico` icons to `.icns` format.
 
-## Run/Debug
+### Run/Debug
 
-### Windows
+#### Windows
 
 After setup, run the app in development mode:
 
@@ -71,7 +99,7 @@ This will open a developer console window where you can:
 
 **Note:** Remember to set `debug=False` before compiling for distribution.
 
-### macOS/Linux
+#### macOS/Linux
 
 ```shell
 # Activate virtual environment
@@ -81,9 +109,9 @@ source .venv/bin/activate
 python app.py
 ```
 
-## Compile
+### Compile
 
-### Windows --> dist\VideoMarkerWeb.exe
+#### Windows --> dist\VideoMarkerWeb.exe
 ```shell
 # Single file executable (recommended for distribution)
 pyinstaller -F -w -n VideoMarkerWeb --icon assets/video_mark_icon.ico --add-data "assets;assets" app.py
@@ -92,7 +120,7 @@ pyinstaller -F -w -n VideoMarkerWeb --icon assets/video_mark_icon.ico --add-data
 pyinstaller --windowed --onedir -n VideoMarkerWeb --icon assets/video_mark_icon.ico --add-data "assets;assets" app.py
 ```
 
-### macOS --> dist/VideoMarkerWeb.app
+#### macOS --> dist/VideoMarkerWeb.app
 ```shell
 # Directory bundle (recommended for pywebview)
 # PyInstaller will auto-convert .ico to .icns if Pillow is installed
@@ -107,15 +135,15 @@ pyinstaller --windowed --onedir -n VideoMarkerWeb --icon assets/video_mark_icon.
 
 **Note:** For pywebview apps, `--onedir` (directory bundle) is often more reliable than `-F` (single file) because native file dialogs and other system integrations work better. Use `-F` for Windows if you need a single executable file for distribution.
 
-## Distribution
+### Distribution
 
-### macOS
+#### macOS
 Distribute the entire `.app` bundle:
 - **File to distribute:** `dist/VideoMarkerWeb.app`
 - Users can double-click the `.app` file to run it
 - If Gatekeeper blocks it, users can run: `xattr -r -d com.apple.quarantine VideoMarkerWeb.app`
 
-### Windows
+#### Windows
 **If using `-F` (single file):**
 - **File to distribute:** `dist/VideoMarkerWeb.exe`
 - Just the single `.exe` file
