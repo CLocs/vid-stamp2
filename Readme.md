@@ -9,6 +9,7 @@
 #### Windows
 2. Download the .exe file
 3. Go to your downloads and double-click the .exe file. 
+4. If you get a blue warning dialog, click "More info" then click "Run anyway"
 
 #### MacOS
 2. Download the .zip file
