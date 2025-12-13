@@ -14,11 +14,12 @@ const roleResident = document.getElementById('roleResident');
 const nextBtn = document.getElementById('nextBtn');
 const roleDisplay = document.getElementById('roleDisplay');
 const editRoleBtn = document.getElementById('editRoleBtn');
-const lastNameInput = document.getElementById('lastNameInput');
+const pgyGroup = document.getElementById('pgyGroup');
+const pgySelect = document.getElementById('pgySelect');
 
 let lastMarkTs = -999;
 let selectedRole = null; // Will be 'attending' or 'resident' after submit
-let lastName = null; // User's last name
+let pgyValue = null; // PGY value (1-7) for residents, null for attendings
 const DEBOUNCE = 0.25; // seconds
 
 function fmt(s) { return s.toFixed(3); }
@@ -72,18 +73,30 @@ undoBtn.addEventListener('click', async () => {
 
 function showRoleModal() {
   roleModal.classList.add('show');
-  // Pre-select the current role and last name if already selected
+  // Pre-select the current role and PGY if already selected
   if (selectedRole) {
     document.querySelector(`input[name="role"][value="${selectedRole}"]`).checked = true;
+    updateRoleBasedFields();
   }
-  if (lastName) {
-    lastNameInput.value = lastName;
+  if (pgyValue) {
+    pgySelect.value = pgyValue;
   } else {
-    lastNameInput.value = '';
+    pgySelect.value = '';
   }
-  // Focus on last name input if role is already selected
-  if (selectedRole) {
-    lastNameInput.focus();
+  // Focus on PGY select if resident is selected
+  if (selectedRole === 'resident') {
+    pgySelect.focus();
+  }
+}
+
+function updateRoleBasedFields() {
+  const selected = document.querySelector('input[name="role"]:checked');
+  if (selected && selected.value === 'resident') {
+    pgyGroup.style.display = 'block';
+    pgySelect.setAttribute('required', 'required');
+  } else {
+    pgyGroup.style.display = 'none';
+    pgySelect.removeAttribute('required');
   }
 }
 
@@ -93,9 +106,9 @@ function hideRoleModal() {
 
 function updateRoleDisplay() {
   if (selectedRole) {
-    const roleText = selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1);
-    if (lastName) {
-      roleDisplay.textContent = `${roleText} ${lastName}`;
+    const roleText = selectedRole === 'resident' ? 'Resident or Fellow' : 'Attending';
+    if (selectedRole === 'resident' && pgyValue) {
+      roleDisplay.textContent = `${roleText} PGY${pgyValue}`;
     } else {
       roleDisplay.textContent = roleText;
     }
@@ -104,22 +117,31 @@ function updateRoleDisplay() {
   }
 }
 
+// Update field visibility when role changes
+roleAttending.addEventListener('change', updateRoleBasedFields);
+roleResident.addEventListener('change', updateRoleBasedFields);
+
 nextBtn.addEventListener('click', () => {
   const selected = document.querySelector('input[name="role"]:checked');
-  const lastNameValue = lastNameInput.value.trim();
   
   if (!selected) {
-    setStatus('Please select Attending or Resident');
+    setStatus('Please select Attending or Resident or Fellow');
     return;
   }
-  if (!lastNameValue) {
-    setStatus('Please enter your last name');
-    lastNameInput.focus();
-    return;
+  
+  if (selected.value === 'resident') {
+    const pgyVal = pgySelect.value;
+    if (!pgyVal) {
+      setStatus('Please select PGY');
+      pgySelect.focus();
+      return;
+    }
+    pgyValue = pgyVal;
+  } else {
+    pgyValue = null;
   }
   
   selectedRole = selected.value;
-  lastName = lastNameValue;
   hideRoleModal();
   updateRoleDisplay();
   setStatus(`Role selected: ${selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1)}`);
@@ -130,7 +152,7 @@ editRoleBtn.addEventListener('click', () => {
 });
 
 // Allow Enter key to submit the modal
-lastNameInput.addEventListener('keydown', (e) => {
+pgySelect.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
     nextBtn.click();
@@ -138,11 +160,14 @@ lastNameInput.addEventListener('keydown', (e) => {
 });
 
 saveBtn.addEventListener('click', async () => {
-  if (!selectedRole || !lastName) {
+  if (!selectedRole) {
     setStatus('Please complete role selection first');
     return;
   }
-  const res = await getAPI().save_csv(null, selectedRole, lastName);
+  // For residents, pass PGY value in format "pgy1", "pgy2", etc.
+  // For attendings, pass null (no last name)
+  const nameValue = (selectedRole === 'resident' && pgyValue) ? `pgy${pgyValue}` : null;
+  const res = await getAPI().save_csv(null, selectedRole, nameValue);
   setStatus(`Saved ${res.count} marks → ${res.saved_to}`);
 });
 

@@ -2,6 +2,7 @@ import os, json, sys, csv
 import webview
 from pathlib import Path
 from typing import Optional
+from datetime import datetime
 
 APP_NAME = "Video Marker"
 HOME = Path.home()
@@ -13,6 +14,8 @@ class Bridge:
     def __init__(self):
         self.marks = []  # seconds (float)
         self.out_path = str(DEFAULT_OUT)  # Store as string to avoid pywebview serialization issues
+        # Capture app start timestamp in YYYYMMDD_HHMM format
+        self.app_start_timestamp = datetime.now().strftime('%Y%m%d_%H%M')
 
     # JS -> Python
     def mark(self, t_seconds: float):
@@ -88,32 +91,37 @@ class Bridge:
         out = Path(path) if path else Path(self.out_path)
         out.parent.mkdir(parents=True, exist_ok=True)
         
-        # Build filename with role and last name
-        # e.g., marks.csv -> mark_attending_smith.csv
-        if role_suffix or last_name:
-            # Sanitize last name for filename (remove spaces, special chars)
-            safe_last_name = ""
-            if last_name:
-                # Keep only alphanumeric and underscores, convert to lowercase
-                safe_last_name = "".join(c.lower() if c.isalnum() or c == '_' else '_' for c in last_name.strip())
-                safe_last_name = safe_last_name.strip('_')  # Remove leading/trailing underscores
-            
-            if out.name == "marks.csv":
-                if role_suffix and safe_last_name:
-                    out = out.parent / f"mark_{role_suffix}_{safe_last_name}.csv"
-                elif role_suffix:
-                    out = out.parent / f"mark_{role_suffix}.csv"
-                elif safe_last_name:
-                    out = out.parent / f"mark_{safe_last_name}.csv"
+        # Build filename with timestamp, role and last name
+        # e.g., marks.csv -> 20240115_1430_mark_attending.csv
+        timestamp_prefix = self.app_start_timestamp
+        
+        # Sanitize last name for filename (remove spaces, special chars)
+        safe_last_name = ""
+        if last_name:
+            # Keep only alphanumeric and underscores, convert to lowercase
+            safe_last_name = "".join(c.lower() if c.isalnum() or c == '_' else '_' for c in last_name.strip())
+            safe_last_name = safe_last_name.strip('_')  # Remove leading/trailing underscores
+        
+        if out.name == "marks.csv":
+            # Prepend timestamp to filename
+            if role_suffix and safe_last_name:
+                out = out.parent / f"{timestamp_prefix}_mark_{role_suffix}_{safe_last_name}.csv"
+            elif role_suffix:
+                out = out.parent / f"{timestamp_prefix}_mark_{role_suffix}.csv"
+            elif safe_last_name:
+                out = out.parent / f"{timestamp_prefix}_mark_{safe_last_name}.csv"
             else:
-                # If custom filename, insert suffix before .csv
-                stem = out.stem
-                parts = [stem]
-                if role_suffix:
-                    parts.append(role_suffix)
-                if safe_last_name:
-                    parts.append(safe_last_name)
-                out = out.parent / f"{'_'.join(parts)}{out.suffix}"
+                # Default case: just timestamp and mark
+                out = out.parent / f"{timestamp_prefix}_mark.csv"
+        else:
+            # If custom filename, prepend timestamp and insert suffix before .csv
+            stem = out.stem
+            parts = [timestamp_prefix, stem]
+            if role_suffix:
+                parts.append(role_suffix)
+            if safe_last_name:
+                parts.append(safe_last_name)
+            out = out.parent / f"{'_'.join(parts)}{out.suffix}"
 
         with out.open("w", newline="") as f:
             import csv
