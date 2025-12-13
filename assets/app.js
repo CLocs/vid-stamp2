@@ -184,34 +184,24 @@ openBtn.addEventListener('click', async () => {
       return;
     }
     
-    // Read the video file through Python and get it as a data URL
-    // This avoids file:// URL security restrictions
+    // Get file:// URL from Python (handles path conversion correctly)
     const filePath = result.file_path;
     const fileName = filePath.split(/[/\\]/).pop(); // Get filename
     
-    const videoData = await getAPI().read_video_file(filePath);
-    if (videoData.error) {
-      setStatus(`Error: ${videoData.error}`);
+    const videoUrlResult = await getAPI().get_video_url(filePath);
+    if (videoUrlResult.error) {
+      setStatus(`Error: ${videoUrlResult.error}`);
       return;
     }
     
-    // Create blob URL from base64 data
-    const byteCharacters = atob(videoData.data);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i);
-    }
-    const byteArray = new Uint8Array(byteNumbers);
-    const blob = new Blob([byteArray], { type: videoData.mime_type || 'video/mp4' });
-    const blobUrl = URL.createObjectURL(blob);
-    
-    vid.src = blobUrl;
+    // Use file:// URL directly - works in pywebview's local context
+    vid.src = videoUrlResult.url;
     vid.load();
     vid.play().then(() => (playBtn.textContent = 'Pause')).catch(e => {
       console.error('Error playing video:', e);
-      setStatus(`Loaded: ${videoData.file_name || fileName} (click Play to start)`);
+      setStatus(`Loaded: ${videoUrlResult.file_name || fileName} (click Play to start)`);
     });
-    setStatus(`Loaded: ${videoData.file_name || fileName}`);
+    setStatus(`Loaded: ${videoUrlResult.file_name || fileName}`);
   } catch (e) {
     console.error('Error opening file:', e);
     setStatus('Error opening file');

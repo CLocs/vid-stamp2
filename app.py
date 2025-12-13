@@ -3,6 +3,11 @@ import webview
 from pathlib import Path
 from typing import Optional
 from datetime import datetime
+import http.server
+import socketserver
+import threading
+import random
+from urllib.parse import urlparse
 
 APP_NAME = "Video Marker"
 HOME = Path.home()
@@ -10,12 +15,68 @@ DEFAULT_OUT = HOME / "Desktop" / "marks.csv"
 BASE = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))  # works for PyInstaller & dev
 ASSETS = BASE / "assets"
 
+def make_video_handler(video_path):
+    """Factory function to create a video file handler with the video path"""
+    video_path_obj = Path(video_path)
+    
+    class VideoFileHandler(http.server.SimpleHTTPRequestHandler):
+        """Custom handler to serve video files with proper headers"""
+        
+        def do_GET(self):
+            # Serve the video file with proper headers for streaming
+            if self.path == '/' or self.path == f'/{video_path_obj.name}':
+                try:
+                    # Get file size
+                    file_size = video_path_obj.stat().st_size
+                    
+                    # Handle range requests for video seeking
+                    range_header = self.headers.get('Range')
+                    if range_header:
+                        # Parse range header
+                        range_match = range_header.replace('bytes=', '').split('-')
+                        start = int(range_match[0]) if range_match[0] else 0
+                        end = int(range_match[1]) if range_match[1] else file_size - 1
+                        
+                        # Send partial content response
+                        self.send_response(206)
+                        self.send_header('Content-Type', 'video/mp4')
+                        self.send_header('Accept-Ranges', 'bytes')
+                        self.send_header('Content-Range', f'bytes {start}-{end}/{file_size}')
+                        self.send_header('Content-Length', str(end - start + 1))
+                        self.end_headers()
+                        
+                        # Send requested byte range
+                        with open(video_path_obj, 'rb') as f:
+                            f.seek(start)
+                            self.wfile.write(f.read(end - start + 1))
+                    else:
+                        # Send full file
+                        self.send_response(200)
+                        self.send_header('Content-Type', 'video/mp4')
+                        self.send_header('Accept-Ranges', 'bytes')
+                        self.send_header('Content-Length', str(file_size))
+                        self.end_headers()
+                        with open(video_path_obj, 'rb') as f:
+                            self.wfile.write(f.read())
+                except Exception as e:
+                    self.send_error(500, str(e))
+            else:
+                self.send_error(404)
+        
+        def log_message(self, format, *args):
+            # Suppress log messages
+            pass
+    
+    return VideoFileHandler
+
 class Bridge:
     def __init__(self):
         self.marks = []  # seconds (float)
         self.out_path = str(DEFAULT_OUT)  # Store as string to avoid pywebview serialization issues
         # Capture app start timestamp in YYYYMMDD_HHMM format
         self.app_start_timestamp = datetime.now().strftime('%Y%m%d_%H%M')
+        self.video_server = None
+        self.video_server_port = None
 
     # JS -> Python
     def mark(self, t_seconds: float):
@@ -32,34 +93,55 @@ class Bridge:
     def get_marks(self):
         return list(self.marks)
 
-    def read_video_file(self, file_path: str):
-        """Read video file and return as base64 data URL"""
+    def get_video_url(self, file_path: str):
+        """Start a local HTTP server to serve the video file"""
         try:
-            import base64
-            
-            path = Path(file_path)
+            path = Path(file_path).resolve()
             if not path.exists():
                 return {"error": "File not found"}
             
-            # Determine MIME type from extension
-            mime_types = {
-                '.mp4': 'video/mp4',
-                '.mov': 'video/quicktime',
-                '.avi': 'video/x-msvideo',
-                '.mkv': 'video/x-matroska',
-                '.webm': 'video/webm',
-            }
-            ext = path.suffix.lower()
-            mime_type = mime_types.get(ext, 'video/mp4')
+            # Stop existing server if any
+            if self.video_server is not None:
+                try:
+                    self.video_server.shutdown()
+                    self.video_server.server_close()
+                except:
+                    pass
             
-            # Read file as base64
-            with path.open('rb') as f:
-                file_data = f.read()
-                base64_data = base64.b64encode(file_data).decode('utf-8')
+            # Find an available port
+            port = random.randint(8000, 8999)
+            max_attempts = 50
+            server_created = False
+            
+            for _ in range(max_attempts):
+                try:
+                    # Create handler class with the video path
+                    handler_class = make_video_handler(path)
+                    self.video_server = socketserver.TCPServer(("127.0.0.1", port), handler_class)
+                    self.video_server_port = port
+                    server_created = True
+                    break
+                except OSError:
+                    port = random.randint(8000, 8999)
+            
+            if not server_created:
+                return {"error": "Could not find available port"}
+            
+            # Start server in a daemon thread
+            def serve():
+                try:
+                    self.video_server.serve_forever()
+                except:
+                    pass
+            
+            server_thread = threading.Thread(target=serve, daemon=True)
+            server_thread.start()
+            
+            # Return HTTP URL
+            video_url = f"http://127.0.0.1:{port}/{path.name}"
             
             return {
-                "data": base64_data,
-                "mime_type": mime_type,
+                "url": video_url,
                 "file_name": path.name
             }
         except Exception as e:
