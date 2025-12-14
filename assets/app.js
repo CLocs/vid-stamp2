@@ -168,7 +168,13 @@ saveBtn.addEventListener('click', async () => {
   // For attendings, pass null (no last name)
   const nameValue = (selectedRole === 'resident' && pgyValue) ? `pgy${pgyValue}` : null;
   const res = await getAPI().save_csv(null, selectedRole, nameValue);
-  setStatus(`Saved ${res.count} marks → ${res.saved_to}`);
+  if (res.error) {
+    setStatus(`Error saving: ${res.error}`);
+    console.error('Save error:', res.error);
+  } else {
+    setStatus(`Saved ${res.count} marks → ${res.saved_to}`);
+    console.log('File saved to:', res.saved_to);
+  }
 });
 
 // Open local video using native file dialog

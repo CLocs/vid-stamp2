@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 
 APP_NAME = "Video Marker"
 HOME = Path.home()
-DEFAULT_OUT = HOME / "Desktop" / "marks.csv"
+DEFAULT_OUT = HOME / "Downloads" / "marks.csv"
 BASE = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))  # works for PyInstaller & dev
 ASSETS = BASE / "assets"
 
@@ -170,53 +170,68 @@ class Bridge:
             return {"error": str(e)}
 
     def save_csv(self, path: Optional[str] = None, role_suffix: Optional[str] = None, last_name: Optional[str] = None):
-        out = Path(path) if path else Path(self.out_path)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Build filename with timestamp, role and last name
-        # e.g., marks.csv -> 20240115_1430_mark_attending.csv
-        timestamp_prefix = self.app_start_timestamp
-        
-        # Sanitize last name for filename (remove spaces, special chars)
-        safe_last_name = ""
-        if last_name:
-            # Keep only alphanumeric and underscores, convert to lowercase
-            safe_last_name = "".join(c.lower() if c.isalnum() or c == '_' else '_' for c in last_name.strip())
-            safe_last_name = safe_last_name.strip('_')  # Remove leading/trailing underscores
-        
-        if out.name == "marks.csv":
-            # Prepend timestamp to filename
-            if role_suffix and safe_last_name:
-                out = out.parent / f"{timestamp_prefix}_mark_{role_suffix}_{safe_last_name}.csv"
-            elif role_suffix:
-                out = out.parent / f"{timestamp_prefix}_mark_{role_suffix}.csv"
-            elif safe_last_name:
-                out = out.parent / f"{timestamp_prefix}_mark_{safe_last_name}.csv"
+        try:
+            # Use provided path or default to Desktop
+            if path:
+                out = Path(path)
             else:
-                # Default case: just timestamp and mark
-                out = out.parent / f"{timestamp_prefix}_mark.csv"
-        else:
-            # If custom filename, prepend timestamp and insert suffix before .csv
-            stem = out.stem
-            parts = [timestamp_prefix, stem]
-            if role_suffix:
-                parts.append(role_suffix)
-            if safe_last_name:
-                parts.append(safe_last_name)
-            out = out.parent / f"{'_'.join(parts)}{out.suffix}"
+                # Use the default output path (Desktop)
+                out = Path(self.out_path)
+            
+            # Ensure parent directory exists
+            out.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Build filename with timestamp, role and last name
+            # e.g., marks.csv -> 20240115_1430_mark_attending.csv
+            timestamp_prefix = self.app_start_timestamp
+            
+            # Sanitize last name for filename (remove spaces, special chars)
+            safe_last_name = ""
+            if last_name:
+                # Keep only alphanumeric and underscores, convert to lowercase
+                safe_last_name = "".join(c.lower() if c.isalnum() or c == '_' else '_' for c in last_name.strip())
+                safe_last_name = safe_last_name.strip('_')  # Remove leading/trailing underscores
+            
+            # Build the final filename
+            if out.name == "marks.csv":
+                # Prepend timestamp to filename
+                if role_suffix and safe_last_name:
+                    out = out.parent / f"{timestamp_prefix}_mark_{role_suffix}_{safe_last_name}.csv"
+                elif role_suffix:
+                    out = out.parent / f"{timestamp_prefix}_mark_{role_suffix}.csv"
+                elif safe_last_name:
+                    out = out.parent / f"{timestamp_prefix}_mark_{safe_last_name}.csv"
+                else:
+                    # Default case: just timestamp and mark
+                    out = out.parent / f"{timestamp_prefix}_mark.csv"
+            else:
+                # If custom filename, prepend timestamp and insert suffix before .csv
+                stem = out.stem
+                parts = [timestamp_prefix, stem]
+                if role_suffix:
+                    parts.append(role_suffix)
+                if safe_last_name:
+                    parts.append(safe_last_name)
+                out = out.parent / f"{'_'.join(parts)}{out.suffix}"
 
-        with out.open("w", newline="") as f:
-            import csv
-            w = csv.writer(f)
-            w.writerow(["timestamp_seconds"])
-            for s in self.marks:
-                w.writerow([f"{s:.3f}"])
+            # Write the CSV file
+            with out.open("w", newline="", encoding="utf-8") as f:
+                w = csv.writer(f)
+                w.writerow(["timestamp_seconds"])
+                for s in self.marks:
+                    w.writerow([f"{s:.3f}"])
 
-        # IMPORTANT: convert Path → str
-        return {
-            "saved_to": str(out),
-            "count": len(self.marks),
-        }
+            # IMPORTANT: convert Path → str
+            return {
+                "saved_to": str(out),
+                "count": len(self.marks),
+            }
+        except Exception as e:
+            return {
+                "error": str(e),
+                "saved_to": None,
+                "count": len(self.marks),
+            }
 
 def main():
     bridge = Bridge()
