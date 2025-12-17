@@ -146,6 +146,71 @@ class Bridge:
             }
         except Exception as e:
             return {"error": str(e)}
+    
+    def load_srt_file(self, video_path: str):
+        """Load SRT subtitle file if it exists with the same base name as the video"""
+        try:
+            video_path_obj = Path(video_path).resolve()
+            if not video_path_obj.exists():
+                return {"error": "Video file not found"}
+            
+            # Look for SRT file with same base name
+            srt_path = video_path_obj.with_suffix('.srt')
+            
+            if not srt_path.exists():
+                return {"subtitles": None, "message": "No SRT file found"}
+            
+            # Parse SRT file
+            subtitles = []
+            with open(srt_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Split by double newlines to get subtitle blocks
+            blocks = content.strip().split('\n\n')
+            
+            for block in blocks:
+                lines = block.strip().split('\n')
+                if len(lines) < 3:
+                    continue
+                
+                # First line is sequence number (skip)
+                # Second line is timestamp: "00:01:23,456 --> 00:01:25,789"
+                # Rest are subtitle text
+                time_line = lines[1]
+                if '-->' not in time_line:
+                    continue
+                
+                # Parse timestamps
+                start_str, end_str = time_line.split('-->')
+                start_str = start_str.strip()
+                end_str = end_str.strip()
+                
+                # Convert SRT time format (HH:MM:SS,mmm) to seconds
+                def srt_time_to_seconds(srt_time):
+                    time_part, ms_part = srt_time.split(',')
+                    h, m, s = map(int, time_part.split(':'))
+                    ms = int(ms_part)
+                    return h * 3600 + m * 60 + s + ms / 1000.0
+                
+                start_time = srt_time_to_seconds(start_str)
+                end_time = srt_time_to_seconds(end_str)
+                
+                # Get subtitle text (all lines after timestamp)
+                text = '\n'.join(lines[2:]).strip()
+                
+                if text:
+                    subtitles.append({
+                        "start": start_time,
+                        "end": end_time,
+                        "text": text
+                    })
+            
+            return {
+                "subtitles": subtitles,
+                "file_name": srt_path.name
+            }
+        except Exception as e:
+            return {"error": str(e)}
 
     def open_video_file(self):
         """Open native file dialog to select a video file"""

@@ -16,10 +16,12 @@ const roleDisplay = document.getElementById('roleDisplay');
 const editRoleBtn = document.getElementById('editRoleBtn');
 const pgyGroup = document.getElementById('pgyGroup');
 const pgySelect = document.getElementById('pgySelect');
+const subtitleBox = document.getElementById('subtitleBox');
 
 let lastMarkTs = -999;
 let selectedRole = null; // Will be 'attending' or 'resident' after submit
 let pgyValue = null; // PGY value (1-7) for residents, null for attendings
+let subtitles = []; // Array of subtitle objects with start, end, text
 const DEBOUNCE = 0.25; // seconds
 
 function fmt(s) { return s.toFixed(3); }
@@ -200,6 +202,19 @@ openBtn.addEventListener('click', async () => {
       return;
     }
     
+    // Try to load SRT file with same base name
+    const srtResult = await getAPI().load_srt_file(filePath);
+    if (srtResult.error) {
+      console.warn('Error loading SRT:', srtResult.error);
+      subtitles = [];
+    } else if (srtResult.subtitles) {
+      subtitles = srtResult.subtitles;
+      console.log(`Loaded ${subtitles.length} subtitles from ${srtResult.file_name}`);
+    } else {
+      subtitles = [];
+      console.log('No SRT file found');
+    }
+    
     // Use file:// URL directly - works in pywebview's local context
     vid.src = videoUrlResult.url;
     vid.load();
@@ -207,12 +222,29 @@ openBtn.addEventListener('click', async () => {
       console.error('Error playing video:', e);
       setStatus(`Loaded: ${videoUrlResult.file_name || fileName} (click Play to start)`);
     });
-    setStatus(`Loaded: ${videoUrlResult.file_name || fileName}`);
+    setStatus(`Loaded: ${videoUrlResult.file_name || fileName}${subtitles.length > 0 ? ` (${subtitles.length} subtitles)` : ''}`);
   } catch (e) {
     console.error('Error opening file:', e);
     setStatus('Error opening file');
   }
 });
+
+// Update subtitles based on video current time
+function updateSubtitles() {
+  const currentTime = vid.currentTime || 0;
+  const activeSubtitle = subtitles.find(sub => 
+    currentTime >= sub.start && currentTime <= sub.end
+  );
+  
+  if (activeSubtitle) {
+    subtitleBox.textContent = activeSubtitle.text;
+  } else {
+    subtitleBox.textContent = '';
+  }
+}
+
+// Listen to video time updates to show subtitles
+vid.addEventListener('timeupdate', updateSubtitles);
 
 // Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
