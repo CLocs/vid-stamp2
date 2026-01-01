@@ -7,5 +7,6 @@ dependencies = [
     "pywebview",
     "pyinstaller",
     "pillow",
+    "pandas>=2.0.3",
 ]
 
