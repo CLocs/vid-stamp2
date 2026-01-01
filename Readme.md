@@ -17,14 +17,14 @@
 4. Go inside the folder (VideoMarkerWeb_macOS) 
 5. Double-click the .app file
 
-#### Fill the form
+### 2. Fill in form
 
 1. Select if you are a Resident or Attending
 2. Enter your number of post-grad years of training
 
 ![](./images/form_fill_attending_resident_fellow.png)
 
-### 2. Download video
+### 3. Download video
 
 1. Download the video from Google Drive: 
    - Sample video: https://drive.google.com/file/d/1D_g4jX7ErTxSYmHa39BTo5Encba5dURx/view?usp=sharing
@@ -37,7 +37,7 @@
    - Select the file you downloaded above
 
 
-### 3. Play and mark video
+### 4. Play and mark video
 
 Functions
 - Space toggles play/pause.
@@ -47,12 +47,13 @@ Functions
 
 When finished, hit "Save CSV". 
 
-### 4. Send results
+### 5. Send results
 
-It saves to your Downloads folder. 
-It is named something like YYYYMMDD_HHMM_mark_[role].csv, eg, 20251217_0056_mark_attending.csv
+1. Find the downloaded file
+   - It saves to your Downloads folder. 
+   - It is named something like YYYYMMDD_HHMM_mark_[role].csv, eg, 20251217_0056_mark_attending.csv
 
-Email the CSV to Colin: dascolin@gmail.com
+2. Email the CSV to Colin: dascolin@gmail.com
 
 ## Developer Guide 
 
