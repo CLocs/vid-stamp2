@@ -182,3 +182,28 @@ Distribute the entire `.app` bundle:
 - **Folder to distribute:** `dist/VideoMarkerWeb/`
 - Distribute the entire folder containing `VideoMarkerWeb.exe` and the `_internal/` folder
 - Users run `VideoMarkerWeb.exe` from within the folder
+
+# Analysis
+
+## 1. Generate Transcript
+
+Goal: generate transcript from video file. 
+
+To be clear, we use the video file (not the audio file) to time-sync the analysis with the video. 
+
+Currently, I use Descript to auto-generate the transcript. 
+Then, I review the transcript manually to check the auto-generated text. It often gets medical jargon wrong. 
+
+I export the transcript to SRT. 
+
+## 2. Run analysis script
+
+Adjust inputs 
+- Path to SRT file
+- (later) Path to folder of mark CSVs
+
+Run
+```shell
+python analysis/parse_srt.py
+```
+
