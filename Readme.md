@@ -99,15 +99,18 @@ uv sync
 
 ### Run/Debug
 
-#### Windows
+Activate virtual environment
+- Windows
+   ```powershell
+   .venv\Scripts\activate
+   ```
+- MacOS
+   ```powershell
+   source .venv\Scripts\activate
+   ```
 
-After setup, run the app in development mode:
-
+Run the app
 ```powershell
-# Activate virtual environment
-.venv\Scripts\activate
-
-# Run the app
 python app.py
 ```
 
