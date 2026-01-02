@@ -1,17 +1,82 @@
 import os, json, sys, csv
 import webview
 from pathlib import Path
+from typing import Optional
+from datetime import datetime
+import http.server
+import socketserver
+import threading
+import random
+from urllib.parse import urlparse
 
 APP_NAME = "Video Marker"
 HOME = Path.home()
-DEFAULT_OUT = HOME / "Desktop" / "marks.csv"
+DEFAULT_OUT = HOME / "Downloads" / "marks.csv"
 BASE = Path(getattr(sys, "_MEIPASS", Path(__file__).parent))  # works for PyInstaller & dev
 ASSETS = BASE / "assets"
+
+def make_video_handler(video_path):
+    """Factory function to create a video file handler with the video path"""
+    video_path_obj = Path(video_path)
+    
+    class VideoFileHandler(http.server.SimpleHTTPRequestHandler):
+        """Custom handler to serve video files with proper headers"""
+        
+        def do_GET(self):
+            # Serve the video file with proper headers for streaming
+            if self.path == '/' or self.path == f'/{video_path_obj.name}':
+                try:
+                    # Get file size
+                    file_size = video_path_obj.stat().st_size
+                    
+                    # Handle range requests for video seeking
+                    range_header = self.headers.get('Range')
+                    if range_header:
+                        # Parse range header
+                        range_match = range_header.replace('bytes=', '').split('-')
+                        start = int(range_match[0]) if range_match[0] else 0
+                        end = int(range_match[1]) if range_match[1] else file_size - 1
+                        
+                        # Send partial content response
+                        self.send_response(206)
+                        self.send_header('Content-Type', 'video/mp4')
+                        self.send_header('Accept-Ranges', 'bytes')
+                        self.send_header('Content-Range', f'bytes {start}-{end}/{file_size}')
+                        self.send_header('Content-Length', str(end - start + 1))
+                        self.end_headers()
+                        
+                        # Send requested byte range
+                        with open(video_path_obj, 'rb') as f:
+                            f.seek(start)
+                            self.wfile.write(f.read(end - start + 1))
+                    else:
+                        # Send full file
+                        self.send_response(200)
+                        self.send_header('Content-Type', 'video/mp4')
+                        self.send_header('Accept-Ranges', 'bytes')
+                        self.send_header('Content-Length', str(file_size))
+                        self.end_headers()
+                        with open(video_path_obj, 'rb') as f:
+                            self.wfile.write(f.read())
+                except Exception as e:
+                    self.send_error(500, str(e))
+            else:
+                self.send_error(404)
+        
+        def log_message(self, format, *args):
+            # Suppress log messages
+            pass
+    
+    return VideoFileHandler
 
 class Bridge:
     def __init__(self):
         self.marks = []  # seconds (float)
         self.out_path = str(DEFAULT_OUT)  # Store as string to avoid pywebview serialization issues
+        # Capture app start timestamp in YYYYMMDD_HHMM format
+        self.app_start_timestamp = datetime.now().strftime('%Y%m%d_%H%M')
+        self.video_server = None
+        self.video_server_port = None
 
     # JS -> Python
     def mark(self, t_seconds: float):
@@ -28,35 +93,121 @@ class Bridge:
     def get_marks(self):
         return list(self.marks)
 
-    def read_video_file(self, file_path: str):
-        """Read video file and return as base64 data URL"""
+    def get_video_url(self, file_path: str):
+        """Start a local HTTP server to serve the video file"""
         try:
-            import base64
-            
-            path = Path(file_path)
+            path = Path(file_path).resolve()
             if not path.exists():
                 return {"error": "File not found"}
             
-            # Determine MIME type from extension
-            mime_types = {
-                '.mp4': 'video/mp4',
-                '.mov': 'video/quicktime',
-                '.avi': 'video/x-msvideo',
-                '.mkv': 'video/x-matroska',
-                '.webm': 'video/webm',
-            }
-            ext = path.suffix.lower()
-            mime_type = mime_types.get(ext, 'video/mp4')
+            # Stop existing server if any
+            if self.video_server is not None:
+                try:
+                    self.video_server.shutdown()
+                    self.video_server.server_close()
+                except:
+                    pass
             
-            # Read file as base64
-            with path.open('rb') as f:
-                file_data = f.read()
-                base64_data = base64.b64encode(file_data).decode('utf-8')
+            # Find an available port
+            port = random.randint(8000, 8999)
+            max_attempts = 50
+            server_created = False
+            
+            for _ in range(max_attempts):
+                try:
+                    # Create handler class with the video path
+                    handler_class = make_video_handler(path)
+                    self.video_server = socketserver.TCPServer(("127.0.0.1", port), handler_class)
+                    self.video_server_port = port
+                    server_created = True
+                    break
+                except OSError:
+                    port = random.randint(8000, 8999)
+            
+            if not server_created:
+                return {"error": "Could not find available port"}
+            
+            # Start server in a daemon thread
+            def serve():
+                try:
+                    self.video_server.serve_forever()
+                except:
+                    pass
+            
+            server_thread = threading.Thread(target=serve, daemon=True)
+            server_thread.start()
+            
+            # Return HTTP URL
+            video_url = f"http://127.0.0.1:{port}/{path.name}"
             
             return {
-                "data": base64_data,
-                "mime_type": mime_type,
+                "url": video_url,
                 "file_name": path.name
+            }
+        except Exception as e:
+            return {"error": str(e)}
+    
+    def load_srt_file(self, video_path: str):
+        """Load SRT subtitle file if it exists with the same base name as the video"""
+        try:
+            video_path_obj = Path(video_path).resolve()
+            if not video_path_obj.exists():
+                return {"error": "Video file not found"}
+            
+            # Look for SRT file with same base name
+            srt_path = video_path_obj.with_suffix('.srt')
+            
+            if not srt_path.exists():
+                return {"subtitles": None, "message": "No SRT file found"}
+            
+            # Parse SRT file
+            subtitles = []
+            with open(srt_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Split by double newlines to get subtitle blocks
+            blocks = content.strip().split('\n\n')
+            
+            for block in blocks:
+                lines = block.strip().split('\n')
+                if len(lines) < 3:
+                    continue
+                
+                # First line is sequence number (skip)
+                # Second line is timestamp: "00:01:23,456 --> 00:01:25,789"
+                # Rest are subtitle text
+                time_line = lines[1]
+                if '-->' not in time_line:
+                    continue
+                
+                # Parse timestamps
+                start_str, end_str = time_line.split('-->')
+                start_str = start_str.strip()
+                end_str = end_str.strip()
+                
+                # Convert SRT time format (HH:MM:SS,mmm) to seconds
+                def srt_time_to_seconds(srt_time):
+                    time_part, ms_part = srt_time.split(',')
+                    h, m, s = map(int, time_part.split(':'))
+                    ms = int(ms_part)
+                    return h * 3600 + m * 60 + s + ms / 1000.0
+                
+                start_time = srt_time_to_seconds(start_str)
+                end_time = srt_time_to_seconds(end_str)
+                
+                # Get subtitle text (all lines after timestamp)
+                text = '\n'.join(lines[2:]).strip()
+                
+                if text:
+                    subtitles.append({
+                        "start": start_time,
+                        "end": end_time,
+                        "text": text
+                    })
+            
+            return {
+                "subtitles": subtitles,
+                "file_name": srt_path.name
             }
         except Exception as e:
             return {"error": str(e)}
@@ -83,13 +234,22 @@ class Bridge:
         except Exception as e:
             return {"error": str(e)}
 
-    def save_csv(self, path: str | None = None, role_suffix: str | None = None, last_name: str | None = None):
-        out = Path(path) if path else Path(self.out_path)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Build filename with role and last name
-        # e.g., marks.csv -> mark_attending_smith.csv
-        if role_suffix or last_name:
+    def save_csv(self, path: Optional[str] = None, role_suffix: Optional[str] = None, last_name: Optional[str] = None):
+        try:
+            # Use provided path or default to Desktop
+            if path:
+                out = Path(path)
+            else:
+                # Use the default output path (Desktop)
+                out = Path(self.out_path)
+            
+            # Ensure parent directory exists
+            out.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Build filename with timestamp, role and last name
+            # e.g., marks.csv -> 20240115_1430_mark_attending.csv
+            timestamp_prefix = self.app_start_timestamp
+            
             # Sanitize last name for filename (remove spaces, special chars)
             safe_last_name = ""
             if last_name:
@@ -97,35 +257,46 @@ class Bridge:
                 safe_last_name = "".join(c.lower() if c.isalnum() or c == '_' else '_' for c in last_name.strip())
                 safe_last_name = safe_last_name.strip('_')  # Remove leading/trailing underscores
             
+            # Build the final filename
             if out.name == "marks.csv":
+                # Prepend timestamp to filename
                 if role_suffix and safe_last_name:
-                    out = out.parent / f"mark_{role_suffix}_{safe_last_name}.csv"
+                    out = out.parent / f"{timestamp_prefix}_mark_{role_suffix}_{safe_last_name}.csv"
                 elif role_suffix:
-                    out = out.parent / f"mark_{role_suffix}.csv"
+                    out = out.parent / f"{timestamp_prefix}_mark_{role_suffix}.csv"
                 elif safe_last_name:
-                    out = out.parent / f"mark_{safe_last_name}.csv"
+                    out = out.parent / f"{timestamp_prefix}_mark_{safe_last_name}.csv"
+                else:
+                    # Default case: just timestamp and mark
+                    out = out.parent / f"{timestamp_prefix}_mark.csv"
             else:
-                # If custom filename, insert suffix before .csv
+                # If custom filename, prepend timestamp and insert suffix before .csv
                 stem = out.stem
-                parts = [stem]
+                parts = [timestamp_prefix, stem]
                 if role_suffix:
                     parts.append(role_suffix)
                 if safe_last_name:
                     parts.append(safe_last_name)
                 out = out.parent / f"{'_'.join(parts)}{out.suffix}"
 
-        with out.open("w", newline="") as f:
-            import csv
-            w = csv.writer(f)
-            w.writerow(["timestamp_seconds"])
-            for s in self.marks:
-                w.writerow([f"{s:.3f}"])
+            # Write the CSV file
+            with out.open("w", newline="", encoding="utf-8") as f:
+                w = csv.writer(f)
+                w.writerow(["timestamp_seconds"])
+                for s in self.marks:
+                    w.writerow([f"{s:.3f}"])
 
-        # IMPORTANT: convert Path → str
-        return {
-            "saved_to": str(out),
-            "count": len(self.marks),
-        }
+            # IMPORTANT: convert Path → str
+            return {
+                "saved_to": str(out),
+                "count": len(self.marks),
+            }
+        except Exception as e:
+            return {
+                "error": str(e),
+                "saved_to": None,
+                "count": len(self.marks),
+            }
 
 def main():
     bridge = Bridge()
