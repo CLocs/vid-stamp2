@@ -18,12 +18,21 @@
         </label>
         <label>
           <input type="radio" name="role" value="resident" id="roleResident" />
-          Resident
+          Resident or Fellow
         </label>
       </div>
-      <div class="modal-input-group">
-        <label for="lastNameInput">Last Name:</label>
-        <input type="text" id="lastNameInput" placeholder="Enter last name" required />
+      <div class="modal-input-group" id="pgyGroup" style="display: none;">
+        <label for="pgySelect">I am PGY...</label>
+        <select id="pgySelect" required>
+          <option value="">Select PGY</option>
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+          <option value="6">6</option>
+          <option value="7">7</option>
+        </select>
       </div>
       <button id="nextBtn" class="next-button">Next</button>
     </div>
@@ -46,6 +55,7 @@
       <!-- <source src="./video.mp4" type="video/mp4" /> -->
       Your browser does not support HTML5 video.
     </video>
+    <div id="subtitleBox" class="subtitle-box"></div>
 
     <div class="controls">
       <button id="markBtn" class="mark">MARK (double-click or press M)</button>

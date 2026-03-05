@@ -14,11 +14,14 @@ const roleResident = document.getElementById('roleResident');
 const nextBtn = document.getElementById('nextBtn');
 const roleDisplay = document.getElementById('roleDisplay');
 const editRoleBtn = document.getElementById('editRoleBtn');
-const lastNameInput = document.getElementById('lastNameInput');
+const pgyGroup = document.getElementById('pgyGroup');
+const pgySelect = document.getElementById('pgySelect');
+const subtitleBox = document.getElementById('subtitleBox');
 
 let lastMarkTs = -999;
 let selectedRole = null; // Will be 'attending' or 'resident' after submit
-let lastName = null; // User's last name
+let pgyValue = null; // PGY value (1-7) for residents, null for attendings
+let subtitles = []; // Array of subtitle objects with start, end, text
 const DEBOUNCE = 0.25; // seconds
 
 function fmt(s) { return s.toFixed(3); }
@@ -72,18 +75,30 @@ undoBtn.addEventListener('click', async () => {
 
 function showRoleModal() {
   roleModal.classList.add('show');
-  // Pre-select the current role and last name if already selected
+  // Pre-select the current role and PGY if already selected
   if (selectedRole) {
     document.querySelector(`input[name="role"][value="${selectedRole}"]`).checked = true;
+    updateRoleBasedFields();
   }
-  if (lastName) {
-    lastNameInput.value = lastName;
+  if (pgyValue) {
+    pgySelect.value = pgyValue;
   } else {
-    lastNameInput.value = '';
+    pgySelect.value = '';
   }
-  // Focus on last name input if role is already selected
-  if (selectedRole) {
-    lastNameInput.focus();
+  // Focus on PGY select if resident is selected
+  if (selectedRole === 'resident') {
+    pgySelect.focus();
+  }
+}
+
+function updateRoleBasedFields() {
+  const selected = document.querySelector('input[name="role"]:checked');
+  if (selected && selected.value === 'resident') {
+    pgyGroup.style.display = 'block';
+    pgySelect.setAttribute('required', 'required');
+  } else {
+    pgyGroup.style.display = 'none';
+    pgySelect.removeAttribute('required');
   }
 }
 
@@ -93,9 +108,9 @@ function hideRoleModal() {
 
 function updateRoleDisplay() {
   if (selectedRole) {
-    const roleText = selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1);
-    if (lastName) {
-      roleDisplay.textContent = `${roleText} ${lastName}`;
+    const roleText = selectedRole === 'resident' ? 'Resident or Fellow' : 'Attending';
+    if (selectedRole === 'resident' && pgyValue) {
+      roleDisplay.textContent = `${roleText} PGY${pgyValue}`;
     } else {
       roleDisplay.textContent = roleText;
     }
@@ -104,22 +119,31 @@ function updateRoleDisplay() {
   }
 }
 
+// Update field visibility when role changes
+roleAttending.addEventListener('change', updateRoleBasedFields);
+roleResident.addEventListener('change', updateRoleBasedFields);
+
 nextBtn.addEventListener('click', () => {
   const selected = document.querySelector('input[name="role"]:checked');
-  const lastNameValue = lastNameInput.value.trim();
   
   if (!selected) {
-    setStatus('Please select Attending or Resident');
+    setStatus('Please select Attending or Resident or Fellow');
     return;
   }
-  if (!lastNameValue) {
-    setStatus('Please enter your last name');
-    lastNameInput.focus();
-    return;
+  
+  if (selected.value === 'resident') {
+    const pgyVal = pgySelect.value;
+    if (!pgyVal) {
+      setStatus('Please select PGY');
+      pgySelect.focus();
+      return;
+    }
+    pgyValue = pgyVal;
+  } else {
+    pgyValue = null;
   }
   
   selectedRole = selected.value;
-  lastName = lastNameValue;
   hideRoleModal();
   updateRoleDisplay();
   setStatus(`Role selected: ${selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1)}`);
@@ -130,7 +154,7 @@ editRoleBtn.addEventListener('click', () => {
 });
 
 // Allow Enter key to submit the modal
-lastNameInput.addEventListener('keydown', (e) => {
+pgySelect.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
     nextBtn.click();
@@ -138,12 +162,21 @@ lastNameInput.addEventListener('keydown', (e) => {
 });
 
 saveBtn.addEventListener('click', async () => {
-  if (!selectedRole || !lastName) {
+  if (!selectedRole) {
     setStatus('Please complete role selection first');
     return;
   }
-  const res = await getAPI().save_csv(null, selectedRole, lastName);
-  setStatus(`Saved ${res.count} marks → ${res.saved_to}`);
+  // For residents, pass PGY value in format "pgy1", "pgy2", etc.
+  // For attendings, pass null (no last name)
+  const nameValue = (selectedRole === 'resident' && pgyValue) ? `pgy${pgyValue}` : null;
+  const res = await getAPI().save_csv(null, selectedRole, nameValue);
+  if (res.error) {
+    setStatus(`Error saving: ${res.error}`);
+    console.error('Save error:', res.error);
+  } else {
+    setStatus(`Saved ${res.count} marks → ${res.saved_to}`);
+    console.log('File saved to:', res.saved_to);
+  }
 });
 
 // Open local video using native file dialog
@@ -159,39 +192,59 @@ openBtn.addEventListener('click', async () => {
       return;
     }
     
-    // Read the video file through Python and get it as a data URL
-    // This avoids file:// URL security restrictions
+    // Get file:// URL from Python (handles path conversion correctly)
     const filePath = result.file_path;
     const fileName = filePath.split(/[/\\]/).pop(); // Get filename
     
-    const videoData = await getAPI().read_video_file(filePath);
-    if (videoData.error) {
-      setStatus(`Error: ${videoData.error}`);
+    const videoUrlResult = await getAPI().get_video_url(filePath);
+    if (videoUrlResult.error) {
+      setStatus(`Error: ${videoUrlResult.error}`);
       return;
     }
     
-    // Create blob URL from base64 data
-    const byteCharacters = atob(videoData.data);
-    const byteNumbers = new Array(byteCharacters.length);
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    // Try to load SRT file with same base name
+    const srtResult = await getAPI().load_srt_file(filePath);
+    if (srtResult.error) {
+      console.warn('Error loading SRT:', srtResult.error);
+      subtitles = [];
+    } else if (srtResult.subtitles) {
+      subtitles = srtResult.subtitles;
+      console.log(`Loaded ${subtitles.length} subtitles from ${srtResult.file_name}`);
+    } else {
+      subtitles = [];
+      console.log('No SRT file found');
     }
-    const byteArray = new Uint8Array(byteNumbers);
-    const blob = new Blob([byteArray], { type: videoData.mime_type || 'video/mp4' });
-    const blobUrl = URL.createObjectURL(blob);
     
-    vid.src = blobUrl;
+    // Use file:// URL directly - works in pywebview's local context
+    vid.src = videoUrlResult.url;
     vid.load();
     vid.play().then(() => (playBtn.textContent = 'Pause')).catch(e => {
       console.error('Error playing video:', e);
-      setStatus(`Loaded: ${videoData.file_name || fileName} (click Play to start)`);
+      setStatus(`Loaded: ${videoUrlResult.file_name || fileName} (click Play to start)`);
     });
-    setStatus(`Loaded: ${videoData.file_name || fileName}`);
+    setStatus(`Loaded: ${videoUrlResult.file_name || fileName}${subtitles.length > 0 ? ` (${subtitles.length} subtitles)` : ''}`);
   } catch (e) {
     console.error('Error opening file:', e);
     setStatus('Error opening file');
   }
 });
+
+// Update subtitles based on video current time
+function updateSubtitles() {
+  const currentTime = vid.currentTime || 0;
+  const activeSubtitle = subtitles.find(sub => 
+    currentTime >= sub.start && currentTime <= sub.end
+  );
+  
+  if (activeSubtitle) {
+    subtitleBox.textContent = activeSubtitle.text;
+  } else {
+    subtitleBox.textContent = '';
+  }
+}
+
+// Listen to video time updates to show subtitles
+vid.addEventListener('timeupdate', updateSubtitles);
 
 // Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
